@@ -1,0 +1,83 @@
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: fluentd
+  namespace: kube-system
+  labels:
+    k8s-app: fluentd-logger
+    version: v1
+    kubernetes.io/cluster-service: "true"
+spec:
+  template:
+    metadata:
+      labels:
+        k8s-app: fluentd-logger
+        version: v1
+        kubernetes.io/cluster-service: "true"
+    spec:
+      serviceAccountName: fluentd
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
+      containers:
+      - name: fluentd
+        image: fluent/fluentd-kubernetes-daemonset:v1.3.3-debian-syslog-1.3
+        env:
+          # In Kubernetes and default setting, fluentd needs root permission to read logs in /var/log and write pos_file to /var/log. 
+          # To avoid permission error, you need to set FLUENT_UID environment variable to 0 in your Kubernetes configuration.
+          - name: FLUENT_UID
+            value: "0"
+          # If you don't setup systemd in the container, fluentd shows following messages by default configuration.
+          # [warn]: #0 [in_systemd_bootkube] Systemd::JournalError: No such file or directory retrying in 1s
+          # You can suppress these messages by setting disable to FLUENTD_SYSTEMD_CONF environment variable in your kubernetes configuration.
+          - name: FLUENTD_SYSTEMD_CONF
+            value: enable
+          # By default, latest images launch prometheus plugins to monitor fluentd. 
+          # You can disable prometheus input plugin by setting disable to FLUENTD_PROMETHEUS_CONF environment variable in your kubernetes configuration.
+          - name: FLUENTD_PROMETHEUS_CONF
+            value: disable
+          - name: SYSLOG_HOST
+            value: "10.86.1.123"
+          - name: SYSLOG_PORT
+            value: "1514"
+          - name: SYSLOG_PROTOCOL
+            value: "tcp"
+        resources:
+          limits:
+            memory: 200Mi
+          requests:
+            cpu: 100m
+            memory: 200Mi
+        volumeMounts:
+        - name: config-volume
+          mountPath: /fluentd/etc/journald.conf
+          subPath: journald.conf
+        - name: config-volume
+          mountPath: /fluentd/etc/kubernetes.conf
+          subPath: kubernetes.conf
+        - name: config-volume
+          mountPath: /fluentd/etc/fluent.conf
+          subPath: fluent.conf
+        - name: varlog
+          mountPath: /var/log
+        - name: varlibdockercontainers
+          mountPath: /var/lib/docker/containers
+          readOnly: true
+        - name: varlogjournal
+          mountPath: /var/log/journal
+          readOnly: true
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: config-volume
+        configMap:
+          name: fluentd
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: varlibdockercontainers
+        hostPath:
+          path: /var/lib/docker/containers
+      - name: varlogjournal
+        hostPath:
+          path: /var/log/journal
+

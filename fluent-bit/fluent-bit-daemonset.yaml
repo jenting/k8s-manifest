@@ -1,0 +1,86 @@
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: fluent-bit
+  namespace: kube-system
+  labels:
+    k8s-app: fluent-bit-logger
+    version: v1
+    kubernetes.io/cluster-service: "true"
+spec:
+  template:
+    metadata:
+      labels:
+        k8s-app: fluent-bit-logger
+        version: v1
+        kubernetes.io/cluster-service: "true"
+    spec:
+      serviceAccountName: fluent-bit
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
+      containers:
+      - name: fluent-bit
+        image: jhsiaosuse/fluent-bit-out-syslog:0.1.5
+        command: ["/fluent-bit/bin/fluent-bit"]
+        args: ["--plugin", "/fluent-bit/bin/out_syslog.so", "--config", "/fluent-bit/etc/fluent-bit.conf"]
+        resources:
+          requests:
+            cpu: 5m
+            memory: 10Mi
+          limits:
+            cpu: 50m
+            memory: 60Mi
+        volumeMounts:
+        - name: config-volume
+          mountPath: /fluent-bit/etc/fluent-bit.conf
+          subPath: fluent-bit.conf
+        - name: config-volume
+          mountPath: /fluent-bit/etc/inputs.conf
+          subPath: inputs.conf
+        - name: config-volume
+          mountPath: /fluent-bit/etc/input-systemd.conf
+          subPath: input-systemd.conf
+        - name: config-volume
+          mountPath: /fluent-bit/etc/input-kubernetes.conf
+          subPath: input-kubernetes.conf
+        - name: config-volume
+          mountPath: /fluent-bit/etc/filters.conf
+          subPath: filters.conf
+        - name: config-volume
+          mountPath: /fluent-bit/etc/filter-kubernetes.conf
+          subPath: filter-kubernetes.conf
+        - name: config-volume
+          mountPath: /fluent-bit/etc/outputs.conf
+          subPath: outputs.conf
+        - name: config-volume
+          mountPath: /fluent-bit/etc/output-file.conf
+          subPath: output-file.conf
+        - name: config-volume
+          mountPath: /fluent-bit/etc/output-syslog.conf
+          subPath: output-syslog.conf
+        - name: config-volume
+          mountPath: /fluent-bit/etc/rootCA.pem
+          subPath: rootCA.pem
+        - name: varlog
+          mountPath: /var/log
+        - name: varlibdockercontainers
+          mountPath: /var/lib/docker/containers
+          readOnly: true
+        - name: varlogjournal
+          mountPath: /var/log/journal
+          readOnly: true
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: config-volume
+        configMap:
+          name: fluent-bit
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: varlibdockercontainers
+        hostPath:
+          path: /var/lib/docker/containers
+      - name: varlogjournal
+        hostPath:
+          path: /var/log/journal

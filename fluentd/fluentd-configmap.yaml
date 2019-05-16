@@ -1,0 +1,167 @@
+kind: ConfigMap
+apiVersion: v1
+metadata: 
+  name: fluentd
+  namespace: kube-system
+data:
+  journald.conf: |
+    <source>
+      @type systemd
+      @id in_systemd_kernel
+      path /var/log/journal
+      matches [{ "_TRANSPORT": "kernel" }]
+      <storage>
+        @type local
+      </storage>
+      read_from_head true
+      tag journald.kernel
+    </source>
+
+    <source>
+      @type systemd
+      @id in_systemd_kubelet
+      path /var/log/journal
+      matches [{ "_SYSTEMD_UNIT": "kubelet.service" }]
+      <storage>
+        @type local
+      </storage>
+      read_from_head true
+      tag journald.kubelet
+    </source>
+
+    <source>
+      @type systemd
+      @id in_systemd_crio
+      path /var/log/journal
+      matches [{ "_SYSTEMD_UNIT": "crio.service" }]
+      <storage>
+        @type local
+      </storage>
+      read_from_head true
+      tag journald.crio
+    </source>
+
+  kubernetes.conf: |
+    <source>
+      @type tail
+      @id in_tail_cilium_logs
+      path /var/log/containers/cilium-*.log
+      pos_file /var/log/fluentd-cilium.log.pos
+      tag kubernetes.*
+      read_from_head true
+      <parse>
+        @type "regexp"
+        expression "/^(?<time>.+) (?<stream>stdout|stderr)( (?<logtag>.))? (?<log>.*)$/"
+        time_format "%Y-%m-%dT%H:%M:%S"
+        time_type string
+      </parse>
+    </source>
+
+    <source>
+      @type tail
+      @id in_tail_coredns_logs
+      path /var/log/containers/coredns-*.log
+      pos_file /var/log/fluentd-coredns.log.pos
+      tag kubernetes.*
+      read_from_head true
+      <parse>
+        @type "regexp"
+        expression "/^(?<time>.+) (?<stream>stdout|stderr)( (?<logtag>.))? (?<log>.*)$/"
+        time_format "%Y-%m-%dT%H:%M:%S"
+        time_type string
+      </parse>
+    </source>
+
+    <source>
+      @type tail
+      @id in_tail_etcd_logs
+      path /var/log/containers/etcd-*.log
+      pos_file /var/log/fluentd-etcd.log.pos
+      tag kubernetes.*
+      read_from_head true
+      <parse>
+        @type "regexp"
+        expression "/^(?<time>.+) (?<stream>stdout|stderr)( (?<logtag>.))? (?<log>.*)$/"
+        time_format "%Y-%m-%dT%H:%M:%S"
+        time_type string
+      </parse>
+    </source>
+
+    <source>
+      @type tail
+      @id in_tail_kube_apiserver_logs
+      path /var/log/containers/kube-apiserver-*.log
+      pos_file /var/log/fluentd-kube-apiserver.log.pos
+      tag kubernetes.*
+      read_from_head true
+      <parse>
+        @type "regexp"
+        expression "/^(?<time>.+) (?<stream>stdout|stderr)( (?<logtag>.))? (?<log>.*)$/"
+        time_format "%Y-%m-%dT%H:%M:%S"
+        time_type string
+      </parse>
+    </source>
+    
+    <source>
+      @type tail
+      @id in_tail_kube_controller_manager_log
+      path /var/log/containers/kube-controller-manager-*.log
+      pos_file /var/log/fluentd-kube-controller-manager.log.pos
+      tag kubernetes.*
+      read_from_head true
+      <parse>
+        @type "regexp"
+        expression "/^(?<time>.+) (?<stream>stdout|stderr)( (?<logtag>.))? (?<log>.*)$/"
+        time_format "%Y-%m-%dT%H:%M:%S"
+        time_type string
+      </parse>
+    </source>
+
+    <source>
+      @type tail
+      @id in_tail_kube_proxy_logs
+      path /var/log/containers/kube-proxy-*.log
+      pos_file /var/log/fluentd-kube-proxy.log.pos
+      tag kubernetes.*
+      read_from_head true
+      <parse>
+        @type "regexp"
+        expression "/^(?<time>.+) (?<stream>stdout|stderr)( (?<logtag>.))? (?<log>.*)$/"
+        time_format "%Y-%m-%dT%H:%M:%S"
+        time_type string
+      </parse>
+    </source>
+
+     <source>
+      @type tail
+      @id in_tail_kube_scheduler_logs
+      path /var/log/containers/kube-scheduler-*.log
+      pos_file /var/log/fluentd-kube-scheduler.log.pos
+      tag kubernetes.*
+      read_from_head true
+      <parse>
+        @type "regexp"
+        expression "/^(?<time>.+) (?<stream>stdout|stderr)( (?<logtag>.))? (?<log>.*)$/"
+        time_format "%Y-%m-%dT%H:%M:%S"
+        time_type string
+      </parse>
+    </source>
+
+    <filter kubernetes.**>
+      @type kubernetes_metadata
+      @id filter_kube_metadata
+    </filter>
+
+  fluent.conf: |
+    @include kubernetes.conf
+    @include journald.conf
+    @include conf.d/*.conf
+
+    <match **>
+      @type kubernetes_remote_syslog
+      @id out_kube_remote_syslog
+      host "#{ENV['SYSLOG_HOST']}"
+      port "#{ENV['SYSLOG_PORT']}"
+      protocol "#{ENV['SYSLOG_PROTOCOL'] || 'tcp'}"
+    </match>
+
